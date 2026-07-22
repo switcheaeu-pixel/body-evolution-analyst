@@ -32,40 +32,64 @@ export function TrendsTab({ records }: Props) {
   const primaryVals = primaryPts.map(p => p.value)
   const primaryMA = useMemo(() => rollingAverage(primaryVals, 7), [primaryVals])
 
-  const comparePts = compareMetric ? getValues(filtered, compareMetric) : []
+  const comparePts = useMemo(() => compareMetric ? getValues(filtered, compareMetric) : [], [filtered, compareMetric])
   const compareVals = comparePts.map(p => p.value)
-  const compareMA = compareMetric ? rollingAverage(compareVals, 7) : []
+  const compareMA = useMemo(() => compareMetric ? rollingAverage(compareVals, 7) : [], [compareVals, compareMetric])
   const compareDef = compareMetric ? METRIC_DEFINITIONS.find(m => m.key === compareMetric)! : null
 
   const primaryStats = useMemo(() => computeMetricStats(filtered, primaryMetric, primaryDef.lowerIsBetter), [filtered, primaryMetric, primaryDef.lowerIsBetter])
 
   const primaryMin = primaryVals.length ? Math.min(...primaryVals) : 0
-  const primaryMax = primaryVals.length ? Math.max(...primaryVals) : 0
-  const primaryRange = primaryMax - primaryMin || 1
   const primaryBaseline = primaryVals.length ? primaryVals[0] : 0
 
-  const compareMin = compareVals.length ? Math.min(...compareVals) : 0
-  const compareMax = compareVals.length ? Math.max(...compareVals) : 0
-  const compareRange = compareMax - compareMin || 1
+  const chartData = useMemo(() => {
+    const dateMap = new Map<number, { dateStr: string; dateFull: string; value: number | null; ma: number | null; value2: number | null; ma2: number | null }>()
 
-  function normalizeCompareVal(v: number): number {
-    return primaryMin + ((v - compareMin) / compareRange) * primaryRange
-  }
+    for (let i = 0; i < primaryPts.length; i++) {
+      const p = primaryPts[i]
+      const ts = p.date.getTime()
+      dateMap.set(ts, {
+        dateStr: p.date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+        dateFull: p.date.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' }),
+        value: +p.value.toFixed(2),
+        ma: +primaryMA[i].toFixed(2),
+        value2: null,
+        ma2: null,
+      })
+    }
 
-  const chartData = primaryPts.map((p, i) => {
-    const row: Record<string, unknown> = {
-      date: p.date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
-      dateFull: p.date.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' }),
-      value: +p.value.toFixed(2),
-      ma: +primaryMA[i].toFixed(2),
+    if (compareMetric) {
+      for (let i = 0; i < comparePts.length; i++) {
+        const p = comparePts[i]
+        const ts = p.date.getTime()
+        const entry = dateMap.get(ts)
+        if (entry) {
+          entry.value2 = +p.value.toFixed(2)
+          entry.ma2 = compareMA[i] ? +compareMA[i].toFixed(2) : null
+        } else {
+          dateMap.set(ts, {
+            dateStr: p.date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+            dateFull: p.date.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' }),
+            value: null,
+            ma: null,
+            value2: +p.value.toFixed(2),
+            ma2: compareMA[i] ? +compareMA[i].toFixed(2) : null,
+          })
+        }
+      }
     }
-    if (compareMetric && comparePts[i]) {
-      row.value2 = +comparePts[i].value.toFixed(2)
-      row.ma2 = compareMA[i] ? +compareMA[i].toFixed(2) : undefined
-      row.value2Norm = +normalizeCompareVal(comparePts[i].value).toFixed(2)
-    }
-    return row
-  })
+
+    return Array.from(dateMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([_, d]) => ({
+        date: d.dateStr,
+        dateFull: d.dateFull,
+        value: d.value,
+        ma: d.ma,
+        value2: d.value2,
+        ma2: d.ma2,
+      }))
+  }, [primaryPts, primaryMA, comparePts, compareMA, compareMetric])
 
   const periodDateLabel = useMemo(() => {
     if (period === 'all' || filtered.length === 0) return ''
@@ -260,6 +284,7 @@ export function TrendsTab({ records }: Props) {
                   name={compareDef!.label}
                   opacity={0.85}
                   activeDot={{ r: 4, fill: compareDef!.color }}
+                  connectNulls
                   yAxisId="left"
                 />
                 {showMA && (
@@ -272,6 +297,7 @@ export function TrendsTab({ records }: Props) {
                     strokeDasharray="3 2"
                     name={`${compareDef!.label} (MA7)`}
                     opacity={0.5}
+                    connectNulls
                     yAxisId="left"
                   />
                 )}
