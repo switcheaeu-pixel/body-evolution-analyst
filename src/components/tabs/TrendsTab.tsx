@@ -35,18 +35,17 @@ export function TrendsTab({ records }: Props) {
   const comparePts = useMemo(() => compareMetric ? getValues(filtered, compareMetric) : [], [filtered, compareMetric])
   const compareVals = comparePts.map(p => p.value)
   const compareMA = useMemo(() => compareMetric ? rollingAverage(compareVals, 7) : [], [compareVals, compareMetric])
-  const compareDef = compareMetric ? METRIC_DEFINITIONS.find(m => m.key === compareMetric)! : null
+  const compareDef = compareMetric ? METRIC_DEFINITIONS.find(m => m.key === compareMetric) ?? null : null
 
   const primaryStats = useMemo(() => computeMetricStats(filtered, primaryMetric, primaryDef.lowerIsBetter), [filtered, primaryMetric, primaryDef.lowerIsBetter])
 
-  const primaryMin = primaryVals.length ? Math.min(...primaryVals) : 0
   const primaryBaseline = primaryVals.length ? primaryVals[0] : 0
 
   const chartData = useMemo(() => {
     const fmt = (d: Date) => d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })
     const fmtFull = (d: Date) => d.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })
 
-    if (!compareMetric) {
+    if (!compareMetric || comparePts.length === 0) {
       return primaryPts.map((p, i) => ({
         date: fmt(p.date),
         dateFull: fmtFull(p.date),
@@ -65,17 +64,9 @@ export function TrendsTab({ records }: Props) {
 
     type Row = { date: string; dateFull: string; value?: number; ma?: number; value2?: number; ma2?: number }
 
-    if (cmpByDate.size === 0) {
-      return primaryPts.map((p, i): Row => ({
-        date: fmt(p.date),
-        dateFull: fmtFull(p.date),
-        value: +p.value.toFixed(2),
-        ma: +primaryMA[i].toFixed(2),
-      }))
-    }
-
     const seen = new Set<number>()
     const rows: Row[] = []
+
     for (let i = 0; i < primaryPts.length; i++) {
       const p = primaryPts[i]
       const ts = p.date.getTime()
@@ -93,6 +84,7 @@ export function TrendsTab({ records }: Props) {
       }
       rows.push(row)
     }
+
     for (let i = 0; i < comparePts.length; i++) {
       const p = comparePts[i]
       const ts = p.date.getTime()
@@ -104,6 +96,7 @@ export function TrendsTab({ records }: Props) {
         ma2: compareMA[i] != null ? +compareMA[i].toFixed(2) : undefined,
       })
     }
+
     return rows.sort((a, b) => new Date(a.dateFull).getTime() - new Date(b.dateFull).getTime())
   }, [primaryPts, primaryMA, comparePts, compareMA, compareMetric])
 
@@ -222,8 +215,8 @@ export function TrendsTab({ records }: Props) {
       {/* Chart */}
       <div className="card p-4 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span style={{ color: primaryDef.color, fontWeight: 600 }}>
               {primaryDef.label} ({primaryDef.unit})
             </span>
             {compareDef && (
@@ -232,7 +225,7 @@ export function TrendsTab({ records }: Props) {
                 <span style={{ color: compareDef.color, fontWeight: 600 }}>
                   {compareDef.label} ({compareDef.unit})
                 </span>
-                <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>(scaled to same range)</span>
+                <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>(independent axes)</span>
               </>
             )}
           </div>
@@ -251,24 +244,41 @@ export function TrendsTab({ records }: Props) {
               axisLine={false}
               interval="preserveStartEnd"
             />
+            {/* Left axis — primary metric */}
             <YAxis
-              tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+              yAxisId="left"
+              tick={{ fill: primaryDef.color, fontSize: 10 }}
               tickLine={false}
               axisLine={false}
               domain={['auto', 'auto']}
               tickFormatter={v => v.toFixed(primaryDef.precision)}
+              width={48}
             />
+            {/* Right axis — compare metric (only rendered when active) */}
+            {compareDef && (
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                tick={{ fill: compareDef.color, fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                domain={['auto', 'auto']}
+                tickFormatter={v => v.toFixed(compareDef.precision)}
+                width={48}
+              />
+            )}
             <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ fontSize: '11px', color: 'var(--color-text-muted)' }}
-            />
+            <Legend wrapperStyle={{ fontSize: '11px', color: 'var(--color-text-muted)' }} />
             <ReferenceLine
+              yAxisId="left"
               y={primaryBaseline}
               stroke="rgba(255,255,255,0.15)"
               strokeDasharray="3 3"
               label={{ value: `Start ${primaryBaseline.toFixed(primaryDef.precision)}`, fill: 'var(--color-text-muted)', fontSize: 10, position: 'right' }}
             />
+            {/* Primary lines — always on left axis */}
             <Line
+              yAxisId="left"
               type="monotone"
               dataKey="value"
               stroke={primaryDef.color}
@@ -280,6 +290,7 @@ export function TrendsTab({ records }: Props) {
             />
             {showMA && (
               <Line
+                yAxisId="left"
                 type="monotone"
                 dataKey="ma"
                 stroke={primaryDef.color}
@@ -291,32 +302,33 @@ export function TrendsTab({ records }: Props) {
                 connectNulls
               />
             )}
-            {compareMetric && (
+            {/* Compare lines — always on right axis */}
+            {compareMetric && compareDef && (
               <>
                 <Line
+                  yAxisId="right"
                   type="monotone"
                   dataKey="value2"
-                  stroke={compareDef!.color}
+                  stroke={compareDef.color}
                   strokeWidth={1.5}
                   dot={false}
-                  name={compareDef!.label}
+                  name={compareDef.label}
                   opacity={0.85}
-                  activeDot={{ r: 4, fill: compareDef!.color }}
+                  activeDot={{ r: 4, fill: compareDef.color }}
                   connectNulls
-                  yAxisId="left"
                 />
                 {showMA && (
                   <Line
+                    yAxisId="right"
                     type="monotone"
                     dataKey="ma2"
-                    stroke={compareDef!.color}
+                    stroke={compareDef.color}
                     strokeWidth={2.5}
                     dot={false}
                     strokeDasharray="3 2"
-                    name={`${compareDef!.label} (MA7)`}
+                    name={`${compareDef.label} (MA7)`}
                     opacity={0.5}
                     connectNulls
-                    yAxisId="left"
                   />
                 )}
               </>
