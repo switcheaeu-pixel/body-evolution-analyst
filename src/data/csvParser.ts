@@ -30,6 +30,7 @@ const COLUMN_MAP: Record<string, keyof BodyRecord> = {
   'weight(kg)':                   'weight',
   'peso (kg)':                    'weight',  // ES
   'peso(kg)':                     'weight',
+  'peso':                         'weight',
 
   // ── Body Fat ───────────────────────────────────────────────────────────────
   'body fat':                     'bodyFat',
@@ -86,6 +87,7 @@ const COLUMN_MAP: Record<string, keyof BodyRecord> = {
   'bmr':                          'bmr',
   'bmr(kcal)':                    'bmr',
   'mba':                          'bmr',  // some locales abbreviate BMR as MBA
+  'mb':                           'bmr',  // ES: Metabolismo Basal
 
   // ── Heart Rate ─────────────────────────────────────────────────────────────
   'frecuencia cardíaca (bpm)':    'heartRate',
@@ -158,11 +160,15 @@ function parseDate(val: string): Date | null {
   return null
 }
 
-// Detect delimiter: comma or semicolon (EufyLife ES exports use semicolons)
+// Detect delimiter: tab, semicolon, or comma.
+// EufyLife ES exports use semicolons; many locales use tabs.
 function detectDelimiter(firstLine: string): string {
-  const commas    = (firstLine.match(/,/g) ?? []).length
+  const tabs      = (firstLine.match(/\t/g) ?? []).length
   const semicolons = (firstLine.match(/;/g) ?? []).length
-  return semicolons > commas ? ';' : ','
+  const commas    = (firstLine.match(/,/g) ?? []).length
+  if (tabs > semicolons && tabs > commas) return '\t'
+  if (semicolons > commas) return ';'
+  return ','
 }
 
 export interface ParseResult {
