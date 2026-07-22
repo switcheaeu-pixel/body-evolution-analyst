@@ -72,7 +72,6 @@ const COLUMN_MAP: Record<string, keyof BodyRecord> = {
   'body water(%)':                'bodyWater',
   'water%':                       'bodyWater',
   'agua':                         'bodyWater',  // ES: "AGUA"
-  'mba':                          'bodyWater',  // abbreviated in some exports
   'mbagua':                       'bodyWater',  // merged col artefact
 
   // ── Bone Mass ──────────────────────────────────────────────────────────────
@@ -226,7 +225,7 @@ export function parseCSV(csv: string): ParseResult {
         // Replace comma decimal separator (European locales: "24,8" → "24.8")
         const normalised = val.replace(',', '.')
         const num = parseFloat(normalised)
-        if (!isNaN(num)) ;(record as Record<string, unknown>)[field] = num
+        if (!isNaN(num)) { (record as Record<string, unknown>)[field] = num }
       }
     }
 

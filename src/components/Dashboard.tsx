@@ -1,16 +1,17 @@
 import React, { useState } from 'react'
 import type { BodyRecord } from '../types/metrics'
-import { METRIC_DEFINITIONS } from '../types/metrics'
 import { OverviewTab } from './tabs/OverviewTab'
 import { TrendsTab } from './tabs/TrendsTab'
 import { InsightsTab } from './tabs/InsightsTab'
 import { SnapshotTab } from './tabs/SnapshotTab'
+import { ProgressTab } from './tabs/ProgressTab'
 
 const TABS = [
-  { id: 'overview', label: '📊 Overview' },
-  { id: 'trends',   label: '📈 Trends' },
-  { id: 'insights', label: '💡 Insights' },
-  { id: 'snapshot', label: '📝 Snapshot' },
+  { id: 'overview',  label: '📊 Overview' },
+  { id: 'trends',    label: '📈 Trends' },
+  { id: 'progress',  label: '📋 Progress' },
+  { id: 'insights',  label: '💡 Insights' },
+  { id: 'snapshot',  label: '📝 Snapshot' },
 ]
 
 interface Props {
@@ -64,6 +65,7 @@ export function Dashboard({ records, onReset }: Props) {
       <main className="flex-1 p-6 overflow-auto">
         {tab === 'overview'  && <OverviewTab records={records} />}
         {tab === 'trends'    && <TrendsTab records={records} />}
+        {tab === 'progress'  && <ProgressTab records={records} />}
         {tab === 'insights'  && <InsightsTab records={records} />}
         {tab === 'snapshot'  && <SnapshotTab records={records} />}
       </main>

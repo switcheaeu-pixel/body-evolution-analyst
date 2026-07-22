@@ -11,6 +11,7 @@
   --color-primary: #4f98a3;
   --color-text: #e2e8f0;
   --color-text-muted: #8892a4;
+  --color-text-faint: #5a5957;
   --color-success: #6daa45;
   --color-warning: #e8af34;
   --color-error: #d163a7;
@@ -25,6 +26,29 @@ body {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
+}
+
+@layer components {
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+  }
+  .text-muted { color: var(--color-text-muted); }
+  .text-faint { color: var(--color-text-faint); }
+  .text-primary { color: var(--color-primary); }
+  .text-success { color: var(--color-success); }
+  .text-warning { color: var(--color-warning); }
+  .text-error { color: var(--color-error); }
+  .bg-surface { background: var(--color-surface); }
+  .border-subtle { border-color: var(--color-border); }
+
+  .metric-positive { color: var(--color-success); }
+  .metric-negative { color: var(--color-error); }
+
+  .sparkline-positive { stroke: var(--color-success); }
+  .sparkline-negative { stroke: var(--color-error); }
+  .sparkline-neutral { stroke: var(--color-primary); }
 }
 
 ::-webkit-scrollbar { width: 6px; }

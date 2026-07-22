@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useRef, useState } from 'react'
 import { parseCSV } from '../data/csvParser'
 import type { BodyRecord } from '../types/metrics'
 
@@ -16,6 +16,7 @@ export function ImportScreen({ onData, onDemo }: Props) {
     skipped:          number
     detectedColumns:  string[]
   } | null>(null)
+  const dragCounter = useRef(0)
 
   const processFile = (file: File) => {
     setError(null)
@@ -34,10 +35,30 @@ export function ImportScreen({ onData, onDemo }: Props) {
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     setDragging(false)
+    dragCounter.current = 0
     const file = e.dataTransfer.files[0]
     if (file?.name.toLowerCase().endsWith('.csv')) processFile(file)
     else setError('Please drop a .csv file')
+  }, [])
+
+  const onDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current++
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setDragging(true)
+    }
+  }, [])
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounter.current--
+    if (dragCounter.current === 0) {
+      setDragging(false)
+    }
   }, [])
 
   const onFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,8 +92,9 @@ export function ImportScreen({ onData, onDemo }: Props) {
           <>
             <div
               onDrop={onDrop}
-              onDragOver={e => { e.preventDefault(); setDragging(true) }}
-              onDragLeave={() => setDragging(false)}
+              onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
+              onDragEnter={onDragEnter}
+              onDragLeave={onDragLeave}
               className="rounded-xl border-2 border-dashed p-10 text-center cursor-pointer transition-all"
               style={{
                 borderColor: dragging ? 'var(--color-primary)' : 'rgba(255,255,255,0.15)',
