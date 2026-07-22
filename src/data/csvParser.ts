@@ -8,7 +8,8 @@ import type { BodyRecord } from '../types/metrics'
 //      "2026-07-22 121747claudioferrara936823.00000019.600000..."
 //      i.e. date + time + username + all numeric values jammed together.
 //   2. Headers are repeated every ~30 rows (pagination artefact).
-//   3. Column names are garbled Spanish: "IMC!D(MISSING)E GRASA CORPORAL".
+//   3. Column names are garbled Spanish with diacritics and encoding artifacts:
+//      e.g. "%!D(MISSING)E GRASA CORPORAL %" = "% DE GRASA CORPORAL %".
 //   4. Some rows contain other family members (e.g. "Vtor") — filter them out
 //      unless the user explicitly picks a member.
 //   5. Rows with all-zero body composition values = incomplete scan (weight-only).
@@ -41,18 +42,13 @@ export interface ParseResult {
 //   12 % DE MASA ÓSEA
 //   13 GRASA VISCERAL
 //   14 PROTEÍNA %
-//   15 MASA DE MÚSCULO ESQUELÉTICO kg
+//   15 MASA DE MÚsCULO ESQUELÉTICO kg
 //   16 % GRASA SUBCUTÁNEA
 //   17 EDAD DEL CUERPO
 //   18 TIPO DE CUERPO
 //   19 TAMAÑO DE LA CABEZA cm
 // ---------------------------------------------------------------------------
 
-// Regex to extract a EufyLife concatenated data row.
-// Groups: (date YYYY-MM-DD) (time HHMMSS) (username) (all remaining numeric/text tokens)
-const ROW_RE = /^(\d{4}-\d{2}-\d{2})\s+(\d{6})([a-zA-Z][\w]*?(?=\d|-|$))(.*)/
-
-// Delimiter-based fallback (for cleaner exports or future app versions)
 const DELIMITERS = [';', '\t', ',']
 
 function detectDelimiter(line: string): string | null {
@@ -62,15 +58,20 @@ function detectDelimiter(line: string): string | null {
   return null
 }
 
+/** Remove accents/diacritics, strip junk chars, lowercase, collapse spaces */
 function normaliseHeader(h: string): string {
   return h
-    .replace(/\uFEFF/g, '')
-    .replace(/[\u200B-\u200D]/g, '')
-    .replace(/[!()]/g, ' ')
+    .replace(/\uFEFF/g, '')          // BOM
+    .replace(/[\u200B-\u200D]/g, '') // zero-width chars
+    .replace(/[!()%]/g, ' ')         // punctuation that appears in garbled headers
+    .replace(/["']/g, '')
     .trim()
+    // NFD decomposition splits letter+accent into two codepoints;
+    // then we strip the combining-accent codepoints (U+0300–U+036F)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/\s+/g, ' ')
-    .replace(/["']/g, '')
 }
 
 function parseNum(v: string): number | undefined {
@@ -80,16 +81,12 @@ function parseNum(v: string): number | undefined {
 }
 
 function parseDate(dateStr: string, timeStr: string): Date {
-  // timeStr is HHMMSS (6 digits)
   const hh = timeStr.slice(0, 2)
   const mm = timeStr.slice(2, 4)
   const ss = timeStr.slice(4, 6)
   return new Date(`${dateStr}T${hh}:${mm}:${ss}`)
 }
 
-// ---------------------------------------------------------------------------
-// Detect whether a row is a header/separator line
-// ---------------------------------------------------------------------------
 function isHeaderOrSeparator(line: string): boolean {
   const l = line.toLowerCase()
   return (
@@ -102,43 +99,15 @@ function isHeaderOrSeparator(line: string): boolean {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Parse the concatenated "all values in one string" format
-// Returns positional tokens: [weight, bmi, bodyFat, hr, muscle, musclePct,
-//   bodyWater, bodyFatMass, leanBodyMass, boneMass, boneMassPct,
-//   visceralFat, protein, skeletalMuscle, subcutFat, bodyAge, bodyType, headSize, ...]
-// ---------------------------------------------------------------------------
 function extractConcatenatedTokens(raw: string): string[] {
-  // The concatenated value string looks like:
-  //   "6823.00000019.6000000.00000051.976.3000001471.00000055.10000013.354.72.84.1000009.000..."
-  // Strategy: split on boundaries between a digit-sequence and a new numeric value.
-  // EufyLife always exports 6-decimal floats (e.g. 68.000000, 19.600000)
-  // so we split by the 6-zero boundary.
-  
-  // First, try to extract natural boundaries using regex for numbers with 6 decimal places
   const sixDecRe = /(-?\d+\.\d{6}|-?\d+)/g
   const tokens: string[] = []
   let m: RegExpExecArray | null
-  let rest = raw
-  
-  // Try to split on xxxxxx.000000 pattern which is the eufy fixed-precision format
-  // Tokenize: match floats greedily
-  while ((m = sixDecRe.exec(rest)) !== null) {
-    tokens.push(m[0])
-  }
-  
-  // If we got very few tokens, try a plain whitespace/comma split
-  if (tokens.length < 3) {
-    return rest.trim().split(/[\s,;]+/)
-  }
-  
+  while ((m = sixDecRe.exec(raw)) !== null) tokens.push(m[0])
+  if (tokens.length < 3) return raw.trim().split(/[\s,;]+/)
   return tokens
 }
 
-// ---------------------------------------------------------------------------
-// Map positional tokens → BodyRecord fields
-// Position order matches the known EufyLife ES export header.
-// ---------------------------------------------------------------------------
 const TOKEN_POSITIONS: Array<[number, keyof BodyRecord]> = [
   [0,  'weight'],
   [1,  'bmi'],
@@ -168,7 +137,6 @@ function tokensToRecord(tokens: string[]): Partial<BodyRecord> {
       ;(r as Record<string, unknown>)[field] = n
     }
   }
-  // bodyType is a string at position 16
   if (tokens[16] && !/^0\./.test(tokens[16]) && isNaN(Number(tokens[16]))) {
     r.bodyType = tokens[16]
   }
@@ -176,35 +144,92 @@ function tokensToRecord(tokens: string[]): Partial<BodyRecord> {
 }
 
 // ---------------------------------------------------------------------------
-// Delimiter-based parsing (clean/future EufyLife exports)
+// COLUMN_MAP: keys are normalised (diacritics stripped, lowercase, spaces collapsed).
+// Because normaliseHeader() now strips accents via NFD, we only need the
+// accent-free forms here. Garbled header variants are also included.
 // ---------------------------------------------------------------------------
 const COLUMN_MAP: Record<string, keyof BodyRecord> = {
+  // Date / member
   'hora': 'date', 'date': 'date', 'time': 'date', 'measurement date': 'date',
   'miembros de la familia': 'familyMember', 'family member': 'familyMember',
+
+  // Weight
   'peso kg': 'weight', 'peso': 'weight', 'weight': 'weight', 'weight kg': 'weight',
+
+  // BMI — also catches garbled forms like "%!D(MISSING)E GRASA CORPORAL"
   'imc': 'bmi', 'bmi': 'bmi',
-  'grasa corporal': 'bodyFat', 'body fat': 'bodyFat', 'fat%': 'bodyFat',
-  // garbled header variants
-  'imc d missing e grasa corporal': 'bmi',
-  '% grasa corporal': 'bodyFat',
-  'frecuencia cardiaca bpm': 'heartRate', 'heart rate': 'heartRate',
-  'masa muscular kg': 'muscleMass', 'muscle mass': 'muscleMass',
-  '% de masa muscular': 'muscleMassPct',
+  'imc d missing e grasa corporal': 'bmi',  // garbled: "IMC!D(MISSING)E GRASA CORPORAL"
+  'd missing e grasa corporal': 'bmi',       // partial garble
+
+  // Body fat %
+  'grasa corporal': 'bodyFat',
+  'body fat': 'bodyFat', 'fat': 'bodyFat',
+  'd missing e grasa corporal ': 'bodyFat',  // garbled "%!D(MISSING)E GRASA CORPORAL %"
+  'd missing e grasa corporal  ': 'bodyFat',
+  // accent-stripped forms (after NFD)
+  'grasa corporal ': 'bodyFat',              // trailing space variant
+
+  // Heart rate — FRECUENCIA CARDÍACA → after strip: "frecuencia cardiaca"
+  'frecuencia cardiaca bpm': 'heartRate',
+  'frecuencia cardiaca  bpm ': 'heartRate',
+  'frecuencia cardiaca': 'heartRate',
+  'heart rate': 'heartRate', 'heart rate bpm': 'heartRate',
+
+  // Muscle mass — MASA MUSCULAR
+  'masa muscular kg': 'muscleMass', 'muscle mass': 'muscleMass', 'muscle mass kg': 'muscleMass',
+  'masa muscular': 'muscleMass',
+  '  de masa muscular': 'muscleMassPct',       // "% DE MASA MUSCULAR" → strip % → " de masa muscular"
+  'de masa muscular': 'muscleMassPct',
+  'muscle  ': 'muscleMassPct',
+
+  // Body water — MBAGUA (garbled "MB AGUA" / "% AGUA")
   'mbagua': 'bodyWater', 'agua': 'bodyWater', 'body water': 'bodyWater',
-  'masa grasa corporal kg': 'bodyFatMass',
-  'masa magra corporal kg': 'leanBodyMass',
-  'masa osea kg': 'boneMass', 'bone mass': 'boneMass',
-  '% de masa osea': 'boneMassPct',
+  'mb agua': 'bodyWater', ' agua': 'bodyWater',
+
+  // Fat mass / lean mass
+  'masa grasa corporal kg': 'bodyFatMass', 'fat mass kg': 'bodyFatMass',
+  'masa magra corporal kg': 'leanBodyMass', 'lean body mass': 'leanBodyMass',
+
+  // Bone mass — MASA ÓSEA → after NFD strip: "masa osea"
+  'masa osea kg': 'boneMass', 'bone mass': 'boneMass', 'bone mass kg': 'boneMass',
+  'masa osea': 'boneMass',
+  'de masa osea': 'boneMassPct',              // "% DE MASA ÓSEA" → strip % → " de masa osea"
+  ' de masa osea': 'boneMassPct',
+
+  // Visceral fat
   'grasa visceral': 'visceralFat', 'visceral fat': 'visceralFat',
-  'protena': 'proteinPct', 'proteina': 'proteinPct', 'protein%': 'proteinPct',
+
+  // Protein — PROTEÍNA → after NFD: "proteina"
+  'proteina': 'proteinPct', 'protein': 'proteinPct', 'protein ': 'proteinPct',
+  ' proteina': 'proteinPct',
+
+  // Skeletal muscle — MASA DE MÚsCULO ESQUELÉTICO → "masa de musculo esqueletico"
   'masa de musculo esqueletico kg': 'skeletalMuscleMass',
-  '% grasa subcutanea': 'subcutaneousFatPct',
+  'masa de musculo esqueletico': 'skeletalMuscleMass',
+  'skeletal muscle mass': 'skeletalMuscleMass',
+
+  // Subcutaneous fat — % GRASA SUBCUTÁNEA → "grasa subcutanea"
+  'grasa subcutanea': 'subcutaneousFatPct',
+  ' grasa subcutanea': 'subcutaneousFatPct',  // leading space from % strip
+  'subcutaneous fat': 'subcutaneousFatPct',
+
+  // Body age / type
   'edad del cuerpo': 'bodyAge', 'body age': 'bodyAge',
   'tipo de cuerpo': 'bodyType', 'body type': 'bodyType',
-  'tamao de la cabeza cm': 'headSize', 'head size cm': 'headSize',
+
+  // Head size — TAMAÑO DE LA CABEZA → "tamano de la cabeza"
+  'tamano de la cabeza cm': 'headSize',
+  'tamano de la cabeza': 'headSize',
+  'head size cm': 'headSize', 'head size': 'headSize',
+
+  // Body measurements
   'biceps cm': 'bicepsCm', 'pecho cm': 'chestCm',
-  'cintura cm': 'waistCm', 'cadera cm': 'hipCm',
-  'muslos cm': 'thighCm', 'relacion cintura-cadera': 'waistHipRatio',
+  'cintura cm': 'waistCm', 'waist cm': 'waistCm',
+  'cadera cm': 'hipCm',
+  'muslos cm': 'thighCm',
+  'relacion cintura-cadera': 'waistHipRatio',
+
+  // BMR
   'mb': 'bmr', 'bmr': 'bmr', 'mba': 'bmr',
 }
 
@@ -245,11 +270,23 @@ function parseDelimited(lines: string[], delimiter: string): ParseResult {
 
   headers.forEach((h, i) => {
     const mapped = COLUMN_MAP[h]
-    if (mapped) colMap[i] = mapped
-    else if (h) unmapped.push(rawHeaders[i].trim())
+    if (mapped) {
+      colMap[i] = mapped
+    } else if (h && h.length > 1) {
+      // Try a trimmed version (extra spaces can appear after stripping % signs)
+      const trimmed = h.trim()
+      const trimMapped = COLUMN_MAP[trimmed]
+      if (trimMapped) {
+        colMap[i] = trimMapped
+      } else {
+        unmapped.push(rawHeaders[i].trim())
+      }
+    }
   })
 
-  if (unmapped.length) warnings.push(`Unrecognised columns (ignored): ${unmapped.join(', ')}`)
+  if (unmapped.length) {
+    warnings.push(`Unrecognised columns (ignored): ${unmapped.join(', ')}`)
+  }
   if (!Object.values(colMap).includes('date')) {
     warnings.push('⚠️ No date column found.')
   }
@@ -309,26 +346,19 @@ function parseConcatenated(lines: string[]): ParseResult {
     const line = rawLine.trim()
     if (!line || isHeaderOrSeparator(line)) continue
 
-    // Match: date + time + username + values
-    // Pattern: YYYY-MM-DD HHMMSS<username><values...>
     const dateMatch = line.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{6})(.*)/)
     if (!dateMatch) { skipped++; continue }
 
-    const dateStr  = dateMatch[1]
-    const timeStr  = dateMatch[2]
-    let   rest     = dateMatch[3]
+    const dateStr = dateMatch[1]
+    const timeStr = dateMatch[2]
+    let rest      = dateMatch[3]
 
-    // Extract username: everything before the first digit that starts the weight value
-    // Usernames in eufy are alphanumeric and may contain digits, but the weight
-    // value always starts after all alpha chars in the username.
-    // Heuristic: find first run of digits that forms a plausible weight (40–200)
     let familyMember = ''
     const usernameMatch = rest.match(/^([a-zA-Z][\w]*?)(?=(\d{2,3}\.\d{6}|\d{2,3}\d{6}))/)
     if (usernameMatch) {
       familyMember = usernameMatch[1]
       rest = rest.slice(familyMember.length)
     } else {
-      // fallback: grab leading alpha chars
       const alphaMatch = rest.match(/^([a-zA-Z]+)/)
       if (alphaMatch) {
         familyMember = alphaMatch[1]
@@ -338,18 +368,13 @@ function parseConcatenated(lines: string[]): ParseResult {
 
     members.add(familyMember)
 
-    const date = parseDate(dateStr, timeStr)
+    const date   = parseDate(dateStr, timeStr)
     const tokens = extractConcatenatedTokens(rest)
     const partial = tokensToRecord(tokens)
 
-    // Skip rows with no weight value (completely empty scans)
     if (!partial.weight) { skipped++; continue }
 
-    allRecords.push({
-      date,
-      familyMember,
-      ...partial,
-    } as BodyRecord)
+    allRecords.push({ date, familyMember, ...partial } as BodyRecord)
   }
 
   if (allRecords.length === 0) {
@@ -383,7 +408,6 @@ function deduplicateByTimestamp(records: BodyRecord[]): BodyRecord[] {
     let j = i + 1
     while (j < records.length && records[j].date.getTime() - records[i].date.getTime() < WINDOW_MS) j++
     const group = records.slice(i, j)
-    // pick most complete record
     const best = group.reduce((a, b) =>
       Object.values(b).filter(v => v !== undefined).length >
       Object.values(a).filter(v => v !== undefined).length ? b : a
@@ -403,35 +427,28 @@ export function parseCSV(csv: string, filterMember?: string): ParseResult {
     return { records: [], skipped: 0, warnings: ['File appears empty'], detectedColumns: [], members: [] }
   }
 
-  // Detect format: does the first data-line look like a concatenated EufyLife row?
   const firstDataLine = lines.find(l => /^\d{4}-\d{2}-\d{2}/.test(l.trim())) ?? ''
   const delimiter = detectDelimiter(lines[0])
 
   let result: ParseResult
 
   if (!delimiter && /^\d{4}-\d{2}-\d{2}\s+\d{6}/.test(firstDataLine)) {
-    // Concatenated EufyLife format
     result = parseConcatenated(lines)
   } else if (delimiter) {
-    // Standard delimited CSV
     result = parseDelimited(lines, delimiter)
   } else {
-    // Try concatenated as last resort
     result = parseConcatenated(lines)
     if (result.records.length === 0) {
       result.warnings.push('Could not detect CSV format. Please check the file.')
     }
   }
 
-  // Filter to requested family member
   if (filterMember) {
     const before = result.records.length
-    result.records = result.records.filter(
-      r => r.familyMember === filterMember
-    )
+    result.records = result.records.filter(r => r.familyMember === filterMember)
     const dropped = before - result.records.length
     if (dropped > 0) {
-      result.warnings.push(`Filtered to member "${filterMember}" — ${dropped} records from other members excluded.`)
+      result.warnings.push(`Filtered to "${filterMember}" — ${dropped} records from other members excluded.`)
     }
   }
 
