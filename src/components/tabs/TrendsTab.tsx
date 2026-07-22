@@ -43,52 +43,68 @@ export function TrendsTab({ records }: Props) {
   const primaryBaseline = primaryVals.length ? primaryVals[0] : 0
 
   const chartData = useMemo(() => {
-    const dateMap = new Map<number, { dateStr: string; dateFull: string; value: number | null; ma: number | null; value2: number | null; ma2: number | null }>()
+    const fmt = (d: Date) => d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })
+    const fmtFull = (d: Date) => d.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' })
 
-    for (let i = 0; i < primaryPts.length; i++) {
-      const p = primaryPts[i]
-      const ts = p.date.getTime()
-      dateMap.set(ts, {
-        dateStr: p.date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
-        dateFull: p.date.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' }),
+    if (!compareMetric) {
+      return primaryPts.map((p, i) => ({
+        date: fmt(p.date),
+        dateFull: fmtFull(p.date),
         value: +p.value.toFixed(2),
         ma: +primaryMA[i].toFixed(2),
-        value2: null,
-        ma2: null,
+      }))
+    }
+
+    const cmpByDate = new Map<number, { val: number; maVal: number | undefined }>()
+    for (let i = 0; i < comparePts.length; i++) {
+      cmpByDate.set(comparePts[i].date.getTime(), {
+        val: +comparePts[i].value.toFixed(2),
+        maVal: compareMA[i] != null ? +compareMA[i].toFixed(2) : undefined,
       })
     }
 
-    if (compareMetric) {
-      for (let i = 0; i < comparePts.length; i++) {
-        const p = comparePts[i]
-        const ts = p.date.getTime()
-        const entry = dateMap.get(ts)
-        if (entry) {
-          entry.value2 = +p.value.toFixed(2)
-          entry.ma2 = compareMA[i] ? +compareMA[i].toFixed(2) : null
-        } else {
-          dateMap.set(ts, {
-            dateStr: p.date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
-            dateFull: p.date.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' }),
-            value: null,
-            ma: null,
-            value2: +p.value.toFixed(2),
-            ma2: compareMA[i] ? +compareMA[i].toFixed(2) : null,
-          })
-        }
-      }
+    type Row = { date: string; dateFull: string; value?: number; ma?: number; value2?: number; ma2?: number }
+
+    if (cmpByDate.size === 0) {
+      return primaryPts.map((p, i): Row => ({
+        date: fmt(p.date),
+        dateFull: fmtFull(p.date),
+        value: +p.value.toFixed(2),
+        ma: +primaryMA[i].toFixed(2),
+      }))
     }
 
-    return Array.from(dateMap.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([_, d]) => ({
-        date: d.dateStr,
-        dateFull: d.dateFull,
-        value: d.value,
-        ma: d.ma,
-        value2: d.value2,
-        ma2: d.ma2,
-      }))
+    const seen = new Set<number>()
+    const rows: Row[] = []
+    for (let i = 0; i < primaryPts.length; i++) {
+      const p = primaryPts[i]
+      const ts = p.date.getTime()
+      seen.add(ts)
+      const cmp = cmpByDate.get(ts)
+      const row: Row = {
+        date: fmt(p.date),
+        dateFull: fmtFull(p.date),
+        value: +p.value.toFixed(2),
+        ma: +primaryMA[i].toFixed(2),
+      }
+      if (cmp) {
+        row.value2 = cmp.val
+        row.ma2 = cmp.maVal
+      }
+      rows.push(row)
+    }
+    for (let i = 0; i < comparePts.length; i++) {
+      const p = comparePts[i]
+      const ts = p.date.getTime()
+      if (seen.has(ts)) continue
+      rows.push({
+        date: fmt(p.date),
+        dateFull: fmtFull(p.date),
+        value2: +p.value.toFixed(2),
+        ma2: compareMA[i] != null ? +compareMA[i].toFixed(2) : undefined,
+      })
+    }
+    return rows.sort((a, b) => new Date(a.dateFull).getTime() - new Date(b.dateFull).getTime())
   }, [primaryPts, primaryMA, comparePts, compareMA, compareMetric])
 
   const periodDateLabel = useMemo(() => {
@@ -260,6 +276,7 @@ export function TrendsTab({ records }: Props) {
               dot={false}
               name={primaryDef.label}
               activeDot={{ r: 4, fill: primaryDef.color }}
+              connectNulls
             />
             {showMA && (
               <Line
@@ -271,6 +288,7 @@ export function TrendsTab({ records }: Props) {
                 strokeDasharray="5 2"
                 name={`${primaryDef.label} (MA7)`}
                 opacity={0.6}
+                connectNulls
               />
             )}
             {compareMetric && (
