@@ -1,162 +1,57 @@
 # Body Evolution Analyst
 
-A **local-first** web app that imports your [EufyLife](https://support.nz.eufy.com/support/solutions/articles/154000242608-how-to-export-data-from-the-eufylife-app-) CSV exports and analyzes how your body has evolved over time — with AI-powered insights, interactive charts, and an evolution snapshot report.
-
-> 🔒 **Privacy-first**: All analysis runs entirely in the browser. No data is ever uploaded to any server.
-
----
+A local-first web app that imports your **EufyLife CSV export** and generates AI-powered insights on your body composition evolution over time.
 
 ## Features
 
-- 📥 **Drag-and-drop CSV import** — supports EufyLife CSV export format, schema auto-detection, column mapping, and validation
-- 📊 **Overview dashboard** — current snapshot, net change since start, 30/90-day deltas, improvement streaks
-- 📈 **Trend analysis** — interactive time-series charts, moving averages, rolling deltas, inflection annotations
-- 💡 **AI insight engine** — structured explainable insights (recomposition signals, plateau detection, trend slope changes)
-- 🤖 **AI coach mode** — ask questions about your data in plain language
-- 🔁 **Correlation explorer** — weight vs body fat, muscle vs fat, volatility vs consistency
-- 📋 **Evolution snapshot report** — downloadable summary with "Where I started", "Where I am now", etc.
-- 🗓️ **Consistency heatmap** — calendar view of measurement frequency
-- 🧪 **Demo mode** — synthetic data included to explore the UI without real data
+- 📁 **CSV Import** — drag-and-drop EufyLife exports with schema auto-detection and column mapping
+- 📊 **Overview Dashboard** — all metrics at a glance with net change since baseline
+- 📈 **Trend Analysis** — interactive charts per metric with moving averages and period filters (30d / 90d / 6M / 1Y / All)
+- 💡 **Insights Engine** — recomposition detection, momentum analysis, consistency scoring, and concern flags
+- 📝 **Evolution Snapshot** — human-readable "how I'm evolving" report with exportable `.txt`
+- 🧪 **Demo Mode** — synthetic data to test the app without your real data
+- 🔒 **Privacy-first** — all analysis runs locally in the browser, no data sent anywhere
 
----
+## Stack
 
-## Metrics Supported
-
-| Metric | Direction |
-|---|---|
-| Weight | Lower (context-dependent) |
-| Body Fat % | Lower is better |
-| Muscle Mass | Higher is better |
-| BMI | Lower (context-dependent) |
-| Visceral Fat | Lower is better |
-| Body Water % | Higher is better |
-| Bone Mass | Stable/higher is better |
-| BMR (Basal Metabolic Rate) | Context-dependent |
-
----
+- React + TypeScript + Vite
+- Tailwind CSS
+- Recharts (time-series charts)
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18+
-- npm 9+
-
-### Install
-
 ```bash
-git clone https://github.com/switcheaeu-pixel/body-evolution-analyst.git
-cd body-evolution-analyst
 npm install
-```
-
-### Run (development)
-
-```bash
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+Then open http://localhost:5173
 
-### Build (production)
+## How to Export Your EufyLife Data
 
-```bash
-npm run build
-npm run preview
-```
-
----
-
-## Exporting Data from EufyLife
-
-1. Open the **EufyLife** app on your phone
+1. Open the EufyLife app
 2. Go to **Me → Data → Export All Data**
-3. Enter your account password for verification
-4. Enter your email address
-5. Receive the CSV file by email
-6. Drag-and-drop the CSV file into Body Evolution Analyst
+3. Enter your password and submit your email
+4. Download the CSV from the email
+5. Drag it into the app
 
-See the [EufyLife export guide](https://support.nz.eufy.com/support/solutions/articles/154000242608-how-to-export-data-from-the-eufylife-app-) for details.
+## Sample Data
 
----
+A sample CSV is provided at `data/sample.csv` for testing.
 
-## Project Structure
+## Metrics Supported
 
-```
-body-evolution-analyst/
-├── src/
-│   ├── data/               # Ingestion, parsing, normalization
-│   │   ├── parser.ts
-│   │   ├── normalizer.ts
-│   │   └── sampleData.ts
-│   ├── analytics/          # Analytics engine
-│   │   ├── statistics.ts
-│   │   ├── trends.ts
-│   │   ├── insights.ts
-│   │   ├── recomposition.ts
-│   │   └── outliers.ts
-│   ├── ai/                 # AI coach / Q&A layer
-│   │   └── coach.ts
-│   ├── components/         # React UI components
-│   │   ├── Dashboard/
-│   │   ├── TrendCharts/
-│   │   ├── InsightsPanel/
-│   │   ├── CorrelationExplorer/
-│   │   ├── EvolutionSnapshot/
-│   │   ├── DataQuality/
-│   │   ├── AICoach/
-│   │   └── ImportWizard/
-│   ├── types/              # TypeScript type definitions
-│   │   └── index.ts
-│   ├── hooks/              # Custom React hooks
-│   │   └── useBodyData.ts
-│   ├── store/              # State management
-│   │   └── useStore.ts
-│   ├── utils/              # Shared utility functions
-│   │   └── format.ts
-│   ├── App.tsx
-│   ├── main.tsx
-│   └── index.css
-├── data/
-│   └── sample-eufy-export.csv
-├── public/
-│   └── favicon.svg
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-└── README.md
-```
+| Metric | Unit | Direction |
+|--------|------|-----------|
+| Weight | kg | Lower is better |
+| Body Fat | % | Lower is better |
+| Muscle Mass | kg | Higher is better |
+| BMI | | Lower is better |
+| Visceral Fat | level | Lower is better |
+| Body Water | % | Higher is better |
+| Bone Mass | kg | Higher is better |
+| BMR | kcal | Higher is better |
 
----
+## Disclaimer
 
-## Demo Mode
-
-Click **Load Sample Data** on the import screen to explore the full UI with 12 months of synthetic body-composition measurements without needing your real data.
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Framework | React 18 + TypeScript |
-| Build | Vite 5 |
-| Charts | Recharts 2 |
-| State | Zustand |
-| Styling | Tailwind CSS v3 |
-| CSV Parsing | PapaParse |
-| Export | html2canvas + jsPDF |
-
----
-
-## Important Notes
-
-- All insights are **data-driven interpretations**, not medical or clinical advice.
-- Consult a healthcare professional for any health-related decisions.
-- Calculations are transparent and inspectable in the Data Quality panel.
-
----
-
-## License
-
-MIT
+This app provides data-driven informational analysis only. It is **not medical advice**. Consult a healthcare professional for clinical guidance.
