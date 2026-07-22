@@ -1,12 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 
+// If the repo is served at https://<user>.github.io/<repo>/ the base must be
+// set to the repo name so asset paths resolve correctly.
+// Change 'body-evolution-analyst' if you rename the repo.
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
+  base: '/body-evolution-analyst/',
 })
