@@ -5,11 +5,12 @@ import type { BodyRecord } from '../types/metrics'
 interface Props {
   onData: (records: BodyRecord[]) => void
   onDemo: () => void
+  existingRecordsCount?: number
 }
 
 type Step = 'drop' | 'pick-member' | 'preview'
 
-export function ImportScreen({ onData, onDemo }: Props) {
+export function ImportScreen({ onData, onDemo, existingRecordsCount }: Props) {
   const [dragging, setDragging]     = useState(false)
   const [error, setError]           = useState<string | null>(null)
   const [step, setStep]             = useState<Step>('drop')
@@ -122,6 +123,12 @@ export function ImportScreen({ onData, onDemo }: Props) {
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
             Import your EufyLife CSV export and get insights on your body composition evolution.
           </p>
+          {existingRecordsCount != null && existingRecordsCount > 0 && (
+            <p className="mt-2 text-xs px-3 py-1.5 rounded-lg inline-block"
+              style={{ background: 'rgba(79,152,163,0.1)', color: 'var(--color-primary)', border: '1px solid rgba(79,152,163,0.2)' }}>
+              You have {existingRecordsCount} saved records. New CSV data will be merged — same-date records update, new dates are added.
+            </p>
+          )}
         </div>
 
         {/* ── STEP: drop ── */}

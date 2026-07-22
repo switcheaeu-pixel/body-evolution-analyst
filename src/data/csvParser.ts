@@ -15,36 +15,6 @@ import type { BodyRecord } from '../types/metrics'
 //   6. European decimal comma may appear in some locales.
 // ---------------------------------------------------------------------------
 
-export interface BodyRecord {
-  date: Date
-  familyMember?: string
-  weight?: number
-  bmi?: number
-  bodyFat?: number
-  heartRate?: number
-  muscleMass?: number
-  muscleMassPct?: number
-  bodyWater?: number
-  bodyFatMass?: number
-  leanBodyMass?: number
-  boneMass?: number
-  boneMassPct?: number
-  visceralFat?: number
-  proteinPct?: number
-  skeletalMuscleMass?: number
-  subcutaneousFatPct?: number
-  bmr?: number
-  bodyAge?: number
-  bodyType?: string
-  headSize?: number
-  bicepsCm?: number
-  chestCm?: number
-  waistCm?: number
-  hipCm?: number
-  thighCm?: number
-  waistHipRatio?: number
-}
-
 export interface ParseResult {
   records: BodyRecord[]
   skipped: number
@@ -303,11 +273,11 @@ function parseDelimited(lines: string[], delimiter: string): ParseResult {
         const d = parseDateStr(val)
         if (d) record.date = d
       } else if (STRING_FIELDS.has(field)) {
-        ;(record as Record<string, unknown>)[field] = val
+        (record as Record<string, unknown>)[field] = val
         if (field === 'familyMember') members.add(val)
       } else {
         const n = parseNum(val)
-        if (n !== undefined && n !== 0) ;(record as Record<string, unknown>)[field] = n
+        if (n !== undefined && n !== 0) { (record as Record<string, unknown>)[field] = n }
       }
     }
 
