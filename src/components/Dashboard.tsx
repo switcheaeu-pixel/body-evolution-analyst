@@ -2,31 +2,30 @@ import React, { useState, useRef } from 'react'
 import type { BodyRecord } from '../types/metrics'
 import { parseCSV } from '../data/csvParser'
 import { getMergeDiff } from '../data/storage'
-import { OverviewTab } from './tabs/OverviewTab'
-import { TrendsTab } from './tabs/TrendsTab'
-import { InsightsTab } from './tabs/InsightsTab'
-import { SnapshotTab } from './tabs/SnapshotTab'
-import { ProgressTab } from './tabs/ProgressTab'
+import { OverviewTab }  from './tabs/OverviewTab'
+import { TrendsTab }    from './tabs/TrendsTab'
+import { InsightsTab }  from './tabs/InsightsTab'
+import { SnapshotTab }  from './tabs/SnapshotTab'
+import { ProgressTab }  from './tabs/ProgressTab'
 
 const TABS = [
-  { id: 'overview',  label: '📊 Overview' },
-  { id: 'trends',    label: '📈 Trends' },
-  { id: 'progress',  label: '📋 Progress' },
-  { id: 'insights',  label: '💡 Insights' },
-  { id: 'snapshot',  label: '📝 Snapshot' },
+  { id: 'overview',  label: 'Overview',  icon: '▦' },
+  { id: 'trends',    label: 'Trends',    icon: '↗' },
+  { id: 'progress',  label: 'Progress',  icon: '⊟' },
+  { id: 'insights',  label: 'Insights',  icon: '◈' },
+  { id: 'snapshot',  label: 'Snapshot',  icon: '⊕' },
 ]
 
-/** Generate a consistent accent colour from a string (for avatars) */
 function memberColor(name: string): string {
-  const COLORS = ['#4f98a3','#6daa45','#da7101','#a86fdf','#d19900','#dd6974','#5591c7']
+  const COLORS = ['#00d4c8','#22c55e','#f59e0b','#a78bfa','#f43f5e','#60a5fa','#fb923c']
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
   return COLORS[Math.abs(hash) % COLORS.length]
 }
 
 interface Props {
-  records:        BodyRecord[]   // filtered to activeMember
-  allRecords:     BodyRecord[]   // all members — used for record count in header
+  records:        BodyRecord[]
+  allRecords:     BodyRecord[]
   members:        string[]
   activeMember:   string
   onMemberChange: (m: string) => void
@@ -39,29 +38,27 @@ export function Dashboard({
   records, allRecords, members, activeMember, onMemberChange,
   onReset, onClearData, onImportMore,
 }: Props) {
-  const [tab, setTab]                       = useState('overview')
+  const [tab, setTab]                           = useState('overview')
   const [showClearConfirm, setShowClearConfirm] = useState(false)
-  const [importMessage, setImportMessage]   = useState<string | null>(null)
+  const [importMessage, setImportMessage]       = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // ── Import more CSV from dashboard ──────────────────────────────────────
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
     reader.onload = (ev) => {
       const text = ev.target?.result as string
-      // Parse ALL members — App will merge and keep everyone
       const result = parseCSV(text)
       if (result.records.length === 0) {
-        setImportMessage('No valid records found in file.')
+        setImportMessage('\u26a0\ufe0f No valid records found in file.')
         setTimeout(() => setImportMessage(null), 4000)
         return
       }
       const { added, updated } = getMergeDiff(allRecords, result.records)
-      setImportMessage(`Imported ${result.records.length} records: ${added} new, ${updated} updated.`)
+      setImportMessage(`\u2713 ${result.records.length} records imported — ${added} new, ${updated} updated`)
       onImportMore(result.records)
-      setTimeout(() => setImportMessage(null), 4000)
+      setTimeout(() => setImportMessage(null), 4500)
     }
     reader.readAsText(file, 'UTF-8')
     e.target.value = ''
@@ -72,25 +69,44 @@ export function Dashboard({
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--color-bg)' }}>
 
-      {/* ── Header ─────────────────────────────────────────────────────── */}
-      <header
-        className="flex items-center gap-4 px-6 py-3 border-b"
-        style={{ borderColor: 'var(--color-border)', background: 'var(--color-surface)' }}
-      >
-        {/* Logo + title */}
-        <div className="flex items-center gap-2 shrink-0">
-          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" aria-label="logo">
-            <circle cx="16" cy="16" r="15" stroke="var(--color-primary)" strokeWidth="2"/>
-            <path d="M10 22 L16 10 L22 22" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <circle cx="16" cy="10" r="2" fill="var(--color-primary)"/>
+      {/* ══ App header ═══════════════════════════════════════════════ */}
+      <header style={{
+        display: 'grid',
+        gridTemplateColumns: 'auto 1fr auto',
+        alignItems: 'center',
+        gap: '1rem',
+        padding: '0 1.5rem',
+        height: 56,
+        background: 'rgba(17,19,24,0.9)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        borderBottom: '1px solid var(--color-border)',
+        position: 'sticky',
+        top: 0,
+        zIndex: 40,
+      }}>
+
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexShrink: 0 }}>
+          <svg width="28" height="28" viewBox="0 0 32 32" fill="none" aria-label="logo">
+            <rect width="32" height="32" rx="8" fill="rgba(0,212,200,0.12)" />
+            <path d="M8 22 L14 13 L18 18 L22 10" stroke="#00d4c8" strokeWidth="2.2"
+              strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="22" cy="10" r="2.5" fill="#00d4c8" />
           </svg>
-          <span style={{ fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap' }}>Body Evolution Analyst</span>
+          <span style={{
+            fontFamily: 'var(--font-display)',
+            fontWeight: 800,
+            fontSize: '0.95rem',
+            color: 'var(--color-text)',
+            letterSpacing: '-0.01em',
+            whiteSpace: 'nowrap',
+          }}>Body<span style={{ color: 'var(--color-primary)' }}>Evo</span></span>
         </div>
 
-        {/* ── Member switcher ──────────────────────────────────────────── */}
+        {/* Member switcher — centre */}
         {members.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span style={{ color: 'var(--color-text-faint)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>Viewing:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', overflow: 'hidden' }}>
             {members.map(m => {
               const isActive = m === activeMember
               const color    = memberColor(m)
@@ -100,103 +116,105 @@ export function Dashboard({
                   key={m}
                   onClick={() => onMemberChange(m)}
                   title={m}
+                  className="member-pill"
                   style={{
-                    display:        'flex',
-                    alignItems:     'center',
-                    gap:            '6px',
-                    padding:        '4px 10px 4px 6px',
-                    borderRadius:   '999px',
-                    border:         `1.5px solid ${isActive ? color : 'rgba(255,255,255,0.1)'}`,
-                    background:     isActive ? `${color}22` : 'rgba(255,255,255,0.04)',
-                    color:          isActive ? color : 'var(--color-text-muted)',
-                    fontWeight:     isActive ? 600 : 400,
-                    fontSize:       '0.8rem',
-                    cursor:         'pointer',
-                    transition:     'all 140ms ease',
-                    whiteSpace:     'nowrap',
+                    borderColor:  isActive ? color : 'var(--color-border)',
+                    background:   isActive ? `${color}1a` : 'rgba(255,255,255,0.03)',
+                    color:        isActive ? color : 'var(--color-text-muted)',
+                    fontWeight:   isActive ? 700 : 400,
                   }}
                 >
-                  {/* Avatar circle */}
-                  <span style={{
-                    width: 22, height: 22, borderRadius: '50%',
-                    background: isActive ? color : 'rgba(255,255,255,0.1)',
-                    color: isActive ? '#fff' : 'var(--color-text-muted)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.6rem', fontWeight: 700, flexShrink: 0,
+                  <span className="member-avatar" style={{
+                    background: isActive ? color : 'rgba(255,255,255,0.08)',
+                    color:      isActive ? '#0a0b0f' : 'var(--color-text-muted)',
                   }}>{initials}</span>
                   {m}
-                  {isActive && <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>{records.length}</span>}
+                  {isActive && (
+                    <span style={{ fontSize: '0.68rem', opacity: 0.6,
+                      background: 'rgba(0,0,0,0.25)', borderRadius: '99px',
+                      padding: '1px 5px' }}>
+                      {records.length}
+                    </span>
+                  )}
                 </button>
               )
             })}
           </div>
         )}
 
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* ── Right actions ──────────────────────────────────────────────── */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="text-sm px-3 py-1 rounded"
-            style={{ background: 'rgba(79,152,163,0.12)', color: 'var(--color-primary)', whiteSpace: 'nowrap' }}
-          >+ Import CSV</button>
+        {/* Right actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <button className="btn btn-teal-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>
+            + Import
+          </button>
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleFileImport} />
 
           {!showClearConfirm ? (
-            <button
-              onClick={() => setShowClearConfirm(true)}
-              className="text-sm px-3 py-1 rounded"
-              style={{ background: 'rgba(209,99,167,0.1)', color: 'var(--color-error)', whiteSpace: 'nowrap' }}
-            >Clear data</button>
+            <button className="btn btn-ghost btn-sm" style={{ color: 'var(--color-error)', borderColor: 'rgba(244,63,94,0.2)', background: 'rgba(244,63,94,0.06)' }}
+              onClick={() => setShowClearConfirm(true)}>Clear</button>
           ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Delete all?</span>
-              <button onClick={handleClear} className="text-sm px-3 py-1 rounded font-semibold"
-                style={{ background: 'var(--color-error)', color: '#fff' }}>Yes, clear</button>
-              <button onClick={() => setShowClearConfirm(false)} className="text-sm px-3 py-1 rounded"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--color-text-muted)' }}>Cancel</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>Delete all?</span>
+              <button className="btn btn-sm" style={{ background: 'var(--color-error)', color: '#fff' }} onClick={handleClear}>Yes</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowClearConfirm(false)}>No</button>
             </div>
           )}
 
-          <button onClick={onReset} className="text-sm px-3 py-1 rounded"
-            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>← Start over</button>
+          <button className="btn btn-ghost btn-sm" onClick={onReset}
+            style={{ color: 'var(--color-text-faint)', border: 'none', background: 'none', padding: '0.35rem 0.5rem' }}
+            title="Back to import screen">✕</button>
         </div>
       </header>
 
-      {/* Import feedback toast */}
+      {/* Toast */}
       {importMessage && (
-        <div className="mx-6 mt-3 px-4 py-2 rounded-lg text-sm flex items-center gap-2"
-          style={{ background: 'rgba(79,152,163,0.1)', border: '1px solid rgba(79,152,163,0.2)', color: 'var(--color-primary)' }}>
-          ✅ {importMessage}
+        <div className="animate-toast" style={{
+          position: 'fixed', top: '68px', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 50, whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', gap: '0.5rem',
+          padding: '0.55rem 1.1rem',
+          borderRadius: 'var(--radius-lg)',
+          background: 'var(--color-surface-3)',
+          border: '1px solid rgba(0,212,200,0.25)',
+          color: 'var(--color-primary)',
+          fontSize: '0.82rem', fontWeight: 600,
+          boxShadow: 'var(--shadow-lg)',
+        }}>
+          {importMessage}
         </div>
       )}
 
-      {/* Tabs */}
-      <nav className="flex gap-1 px-6 pt-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
+      {/* ══ Tab nav ══════════════════════════════════════════════════ */}
+      <nav style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '2px',
+        padding: '0 1.5rem',
+        borderBottom: '1px solid var(--color-border)',
+        background: 'var(--color-surface)',
+        overflowX: 'auto',
+      }}>
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className="px-4 py-2 text-sm rounded-t-lg transition-all"
-            style={{
-              color:        tab === t.id ? 'var(--color-primary)' : 'var(--color-text-muted)',
-              borderBottom: tab === t.id ? '2px solid var(--color-primary)' : '2px solid transparent',
-              background:   tab === t.id ? 'rgba(79,152,163,0.08)' : 'transparent',
-              fontWeight:   tab === t.id ? 600 : 400,
-            }}
-          >{t.label}</button>
+            className={`tab-item ${tab === t.id ? 'active' : ''}`}
+          >
+            <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>{t.icon}</span>
+            {t.label}
+          </button>
         ))}
       </nav>
 
-      {/* Content */}
-      <main className="flex-1 p-6 overflow-auto">
-        {tab === 'overview'  && <OverviewTab records={records} />}
-        {tab === 'trends'    && <TrendsTab   records={records} />}
-        {tab === 'progress'  && <ProgressTab records={records} />}
-        {tab === 'insights'  && <InsightsTab records={records} />}
-        {tab === 'snapshot'  && <SnapshotTab records={records} />}
+      {/* ══ Content ══════════════════════════════════════════════════ */}
+      <main className="flex-1 overflow-auto" style={{ padding: '1.5rem' }}>
+        <div className="animate-fade-in-up">
+          {tab === 'overview'  && <OverviewTab records={records} />}
+          {tab === 'trends'    && <TrendsTab   records={records} />}
+          {tab === 'progress'  && <ProgressTab records={records} />}
+          {tab === 'insights'  && <InsightsTab records={records} />}
+          {tab === 'snapshot'  && <SnapshotTab records={records} />}
+        </div>
       </main>
     </div>
   )
